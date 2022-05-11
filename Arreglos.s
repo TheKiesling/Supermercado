@@ -21,40 +21,23 @@
 
 /* --------------------------------------- TEXT --------------------------------------- */
 .text
-.align 2
 .global main
-.type main,%function
-
 /*-- main: inicio y bienvenida --*/
 main:
-    @@ grabar registro de enlace en la pila
-	stmfd sp!, {lr}	/* SP = R13 link register = R14*/
-
     @@ Bienvenida al programa
-    ldr r0,=mensaje_ingreso
-    bl puts
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#39 @ tamano de cadena
+    ldr r1,=mensaje_ingreso @ mensaje a imprimir
+    swi 0
     
     mov r10,#8
 
 /*-- solicitud: pide la cantidad de producto y lo actualiza --*/
 solicitud:
-    @ comparaciones para indicar el producto a solicitar
-	cmp r10,#8
-    ldreq r4,=leche
-    cmp r10,#7
-    ldreq r4,=galletas
-    cmp r10,#6
-    ldreq r4,=mantequilla
-    cmp r10,#5
-    ldreq r4,=queso
-    cmp r10,#4
-    ldreq r4,=pan
-    cmp r10,#3
-    ldreq r4,=jalea
-    cmp r10,#2
-    ldreq r4,=yogurt
-    cmp r10,#1
-    ldreq r4,=manzana
+    @ indicar que mensaje se mostrara
+    bl _mensaje
 
     @ imprimir mensaje de solicitud
     mov r1,r4
@@ -64,71 +47,36 @@ solicitud:
     @ solicitud de cantidad a comprar
     ldr r0,=formato_d
     ldr r1,=cantidad_compra
-	bl scanf
+    bl scanf
 
     @ ingreso correcto
     cmp r0,#0
     beq error_ingreso
 
-    @ obtener la cantidad a comprar y la cantidad en stock del producto a comprar
-    ldr r4,=cantidad_compra
-    ldr r4,[r4]
-    ldr r7,=cantidad
-    ldr r5,[r7,r9]
-
-    @ comprobar que existe suficiente cantidad
-    subs r6,r5,r4
-    bmi error_cantidad
-
-    @ actualizar arreglo de consumo y cantidad en stock
-    ldr r8,=consumo
-	str r4,[r8,r9]
-    str r6,[r7,r9]
-	add r9,#4
+    @ actualizar arreglos
+    bl _actualizacion
 
     @ verificar siguiente accion: ciclo o siguiente etiqueta
     subs r10,#1
     bne solicitud
+
+    @ resetear registros
     mov r10,#8
     mov r9,#0
 
-/*-- gasto: genera el subtotal --*/
-gasto:
-    @ cargar la cantidad a comprar y el precio de dicho producto
-    ldr r8,=consumo
-    ldr r4,[r8,r9]
-    ldr r7,=precio
-    ldr r5,[r7,r9]
+    @ generar subtotal de cada producto
+    bl _gasto
 
-    @ genera el subtotal
-    mul r6,r5,r4
-
-    @ guarda el subtotal en el indice del arreglo correspondiente
-    ldr r11,=subtotal
-    str r6,[r11,r9]
-    add r9,#4
-
-    @ verificar siguiente accion: ciclo o siguiente etiqueta
-    subs r10,#1
-    bne gasto
+    @ setear registros
     mov r10,#8
     mov r9,#0
     ldr r7,=total
     ldr r7,[r7]
 
-/*-- total_pagar: calcula el total a pagar --*/
-total_pagar:
-    @ cargar el subtotal de cada producto
-    ldr r11,=subtotal
-    ldr r4,[r11,r9]
+    @ calcular total a pagar
+    bl _total_pagar
 
-    @ sumar el subtotal
-    add r7,r4
-    add r9,#4
-
-    @ verificar siguiente accion: ciclo o siguiente etiqueta
-    subs r10,#1
-    bne total_pagar
+    @ guardar total en etiqueta
     ldr r6,=total
     str r7,[r6]
     mov r10,#8
@@ -144,13 +92,23 @@ impresion_factura:
     bl scanf
 
     @ mostrar parte inicial de la factura
-    ldr r0,=inicio_factura
-    bl puts
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#19 @ tamano de cadena
+    ldr r1,=inicio_factura @ mensaje a imprimir
+    swi 0
+    
     ldr r0,=cliente
     ldr r1,=nombre
     bl printf
-    ldr r0,=encabezado_factura
-    bl puts
+
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#50 @ tamano de cadena
+    ldr r1,=encabezado_factura @ mensaje a imprimir
+    swi 0
 
 /*-- factura: imprime los productos y sus propiedades de compra --*/
 factura:
@@ -158,23 +116,7 @@ factura:
     ldr r8,=consumo
     ldr r1,[r8,r9]
 
-    @ cargar cada producto
-    cmp r10,#8
-    ldreq r4,=leche
-    cmp r10,#7
-    ldreq r4,=galletas
-    cmp r10,#6
-    ldreq r4,=mantequilla
-    cmp r10,#5
-    ldreq r4,=queso
-    cmp r10,#4
-    ldreq r4,=pan
-    cmp r10,#3
-    ldreq r4,=jalea
-    cmp r10,#2
-    ldreq r4,=yogurt
-    cmp r10,#1
-    ldreq r4,=manzana
+    bl _mensaje
     mov r2,r4
 
     @ cargar el subtotal de cada producto
@@ -201,10 +143,19 @@ factura:
 
 /*-- impresion_inventario: imprime el inventario --*/
 impresion_inventario:
-    ldr r0,=inicio_inventario
-    bl puts
-    ldr r0,=encabezado_inventario
-    bl puts
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#22 @ tamano de cadena
+    ldr r1,=inicio_inventario @ mensaje a imprimir
+    swi 0
+
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#39 @ tamano de cadena
+    ldr r1,=encabezado_inventario @ mensaje a imprimir
+    swi 0
 
 /*-- inventario: imprime los productos y sus propiedades de almacenamiento --*/
 inventario:
@@ -212,23 +163,7 @@ inventario:
     ldr r8,=cantidad
     ldr r1,[r8,r9]
 
-    @ cargar cada producto
-    cmp r10,#8
-    ldreq r4,=leche
-    cmp r10,#7
-    ldreq r4,=galletas
-    cmp r10,#6
-    ldreq r4,=mantequilla
-    cmp r10,#5
-    ldreq r4,=queso
-    cmp r10,#4
-    ldreq r4,=pan
-    cmp r10,#3
-    ldreq r4,=jalea
-    cmp r10,#2
-    ldreq r4,=yogurt
-    cmp r10,#1
-    ldreq r4,=manzana
+    bl _mensaje
     mov r2,r4
 
     @ imprime todos los productos
@@ -243,45 +178,67 @@ inventario:
 
 /*-- error de ingreso --*/
 error_ingreso:
-    ldr r0,=mal_ingreso
-    bl puts
-    bl getchar
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#52 @ tamano de cadena
+    ldr r1,=mal_ingreso @ mensaje a imprimir
+    swi 0
+
     b salir
 
+.global error_cantidad
 /*-- error logico de cantidad --*/
 error_cantidad:
-    ldr r0,=mal_cantidad
-    bl puts
-    bl getchar
+    /*--- SWI ---*/
+    mov r7,#4 @ write
+    mov r0,#1 @ pantalla
+    mov r2,#44 @ tamano de cadena
+    ldr r1,=mal_cantidad @ mensaje a imprimir
+    swi 0
+
     b salir
 
 /*-- Salida del programa --*/
 salir:
     @@salida segura
-    mov r0, #0
-    mov r3, #0
-    ldmfd sp!, {lr}
-    bx lr
+    mov r7,#1
+    swi 0
 
 /* --------------------------------------- DATA --------------------------------------- */
 .data
 .align 2
 
 /*-- Variables --*/
+.global leche
 leche: .asciz "Leche \t\t\t Q.18.00"
+.global galletas
 galletas: .asciz "P. Galletas \t\t Q.25.00"
+.global mantequilla
 mantequilla: .asciz "Mantequilla \t\t Q.10.00"
+.global queso
 queso: .asciz "Queso \t\t\t Q.35.00"
+.global pan
 pan: .asciz "Uni. Pan \t\t Q.4.00"
+.global jalea
 jalea: .asciz "Jalea \t\t\t Q.26.00"
+.global yogurt
 yogurt: .asciz "Uni. Yogurt \t\t Q.8.00"
+.global manzana
 manzana: .asciz "Lb. Manzana \t\t Q.19.00"
+.global cantidad
 cantidad: .word 20,32,15,15,20,18,35,35
+.global precio
 precio: .word 18,25,10,35,4,26,8,19
+.global consumo
 consumo: .word 0,0,0,0,0,0,0,0
+.global cantidad_compra
 cantidad_compra: .word 0
+.global nombre
 nombre: .asciz "                    "
+.global total
 total: .word 0
+.global subtotal
 subtotal: .word 0,0,0,0,0,0,0,0
 
 /*-- Mensajes --*/
@@ -294,9 +251,9 @@ mensaje_ingreso:
 ingreso:
     .asciz "\nIngrese la cantidad de compra de %s:\n"
 mal_ingreso: 
-    .asciz "Ingreso incorrecto, solo se pueden ingresar numeros"
+    .asciz "Ingreso incorrecto, solo se pueden ingresar numeros\n"
 mal_cantidad: 
-    .asciz "No hay suficiente cantidad de este producto"
+    .asciz "No hay suficiente cantidad de este producto\n"
 ingreso_nombre:
     .asciz "\nIngrese su nombre para generar la factura:"
 inicio_factura:
